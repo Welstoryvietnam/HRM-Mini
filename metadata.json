@@ -1,0 +1,8 @@
+{
+  "name": "Remix Quản Lý Tiền Ăn Tuyển Dụng",
+  "description": "Hệ thống tổng hợp và quyết toán tiền ăn bên ngoài của nhân viên tuyển dụng theo chu kỳ 26 đến 25 hàng tháng.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

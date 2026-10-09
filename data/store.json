@@ -1,0 +1,242 @@
+{
+  "employees": [
+    {
+      "id": "1603186689",
+      "name": "Trần Văn Thắng",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-blue-600",
+      "notes": "Quản trị viên hệ thống (Admin)",
+      "password": "123456",
+      "role": "admin"
+    },
+    {
+      "id": "1802260694",
+      "name": "Lưu Thị Thúy Hường",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-pink-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "1805181167",
+      "name": "Vũ Thị Chung",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-emerald-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "1806011183",
+      "name": "Trần Phương Dung",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-purple-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "1905082730",
+      "name": "Vũ Thị Yến",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-rose-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "1906042875",
+      "name": "Hà Văn Nam",
+      "department": "HUMAN RESOURCES",
+      "phone": "0936 678 901",
+      "avatarColor": "bg-violet-600",
+      "notes": "Trưởng nhóm tuyển dụng thực địa",
+      "password": "123456",
+      "role": "manager"
+    },
+    {
+      "id": "2003163729",
+      "name": "Nguyễn Thị Hoài Thương",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-teal-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2006013886",
+      "name": "Nguyễn Công Sơn",
+      "department": "HUMAN RESOURCES",
+      "phone": "0905 567 890",
+      "avatarColor": "bg-teal-600",
+      "notes": "Tuyển dụng nhân sự cấp cao",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2007274042",
+      "name": "Lê Thị Hoài",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-orange-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2012144601",
+      "name": "Nguyễn Văn Dựng",
+      "department": "HUMAN RESOURCES",
+      "phone": "0964 456 789",
+      "avatarColor": "bg-amber-600",
+      "notes": "Chuyên viên phỏng vấn & sourcing",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2209196118",
+      "name": "Phạm Thị Thanh",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-cyan-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2302016468",
+      "name": "Nguyễn Thị Hằng",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-fuchsia-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2304106616",
+      "name": "Nguyễn Thị Ánh",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-indigo-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2404247449",
+      "name": "Nguyễn Thị Hương Giang",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-rose-500",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2408057742",
+      "name": "La Thị Thanh Huyền",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-emerald-700",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2502038104",
+      "name": "Nguyễn Văn Hùng",
+      "department": "HUMAN RESOURCES",
+      "phone": "0972 234 567",
+      "avatarColor": "bg-sky-600",
+      "notes": "Tuyển dụng khối nhà máy",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2508188504",
+      "name": "Hoàng Hải Ngữ",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-lime-600",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2509038532",
+      "name": "Bùi Văn Nhiệm",
+      "department": "HUMAN RESOURCES",
+      "phone": "0913 345 678",
+      "avatarColor": "bg-indigo-600",
+      "notes": "Tuyển dụng thị trường & đối tác",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2603168875",
+      "name": "Chu Thị Ngọc Hà",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-violet-700",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2603268920",
+      "name": "Đinh Thị Thúy Vân",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-amber-700",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2603268921",
+      "name": "Chu Thị Huế",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-blue-700",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    },
+    {
+      "id": "2609079269",
+      "name": "Nguyễn Thị Luyến",
+      "department": "HUMAN RESOURCES",
+      "avatarColor": "bg-teal-700",
+      "notes": "Nhân sự HR Group",
+      "password": "123456",
+      "role": "employee"
+    }
+  ],
+  "mealData": {
+    "2502038104": {
+      "employeeId": "2502038104",
+      "records": {
+        "2026-09-27": {
+          "date": "2026-09-27",
+          "mealsCount": 1,
+          "sessions": [
+            {
+              "id": "2026-09-27_Bữa Trưa",
+              "mealType": "Bữa Trưa",
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "location": "Bắc Ninh",
+              "purpose": "Tuyển dụng các bếp Samsung Yên Phong và các bếp Quế Võ",
+              "mealsCount": 1
+            }
+          ],
+          "location": "Bắc Ninh",
+          "purpose": "Tuyển dụng các bếp Samsung Yên Phong và các bếp Quế Võ"
+        }
+      }
+    }
+  },
+  "settings": {
+    "mealPrice": 40000,
+    "companyName": "Công ty TNHH Welstory Việt Nam",
+    "departmentName": "HR Group",
+    "preparerName": "Nguyễn Văn Hùng",
+    "accountantName": "Trần Thị Thu Thảo",
+    "leaderName": "Hà Văn Nam",
+    "directorName": "Nguyễn Hoàng Long"
+  },
+  "passwordRequests": [],
+  "version": 1791002519419
+}

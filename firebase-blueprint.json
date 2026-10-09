@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "MBO": {
+      "title": "MBO",
+      "description": "MBO registration and tracking",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["employeeId", "title", "status"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Weekly task assignment and tracking",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["employeeId", "title", "status"]
+    },
+    "MealRecord": {
+      "title": "Meal Record",
+      "description": "Daily meal check-in records for a specific employee",
+      "type": "object",
+      "properties": {
+        "employeeId": {
+          "type": "string",
+          "description": "Employee ID"
+        },
+        "records": {
+          "type": "object",
+          "description": "Map of date string to meal details"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Timestamp of last modification"
+        }
+      },
+      "required": ["employeeId", "records"]
+    },
+    "SystemConfig": {
+      "title": "System Configuration",
+      "description": "Global application configuration and employee roster",
+      "type": "object",
+      "properties": {
+        "employees": {
+          "type": "array",
+          "description": "List of employees"
+        },
+        "settings": {
+          "type": "object",
+          "description": "Meal price and app settings"
+        },
+        "passwordRequests": {
+          "type": "array",
+          "description": "Pending password reset requests"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Timestamp of last update"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/meal_records/{employeeId}": {
+      "schema": "MealRecord",
+      "description": "Stores meal check-in data per employee"
+    },
+    "/mbos/{mboId}": {
+      "schema": "MBO",
+      "description": "Stores MBO records"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Stores tasks"
+    },
+    "/system/{configId}": {
+      "schema": "SystemConfig",
+      "description": "Stores system settings and employee roster"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+
+    // Allow read and write to employee meal records
+    match /meal_records/{employeeId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Allow read and write to system configuration
+    match /system/{configId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /mbos/{mboId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /tasks/{taskId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Allow connection test check
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
