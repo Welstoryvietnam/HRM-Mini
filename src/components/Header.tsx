@@ -106,14 +106,13 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="hidden sm:block">
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm tracking-tight">
-                WELSTORY
+                Hệ Thống Quản Lý Công Việc
               </span>
               <span className="text-slate-300 dark:text-slate-700">·</span>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-400">
-                Hệ Thống Quản Lý
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Bộ phận HR/Welstory Việt Nam
               </span>
             </div>
-            
           </div>
 
           {/* Cloud Realtime sync status badge */}

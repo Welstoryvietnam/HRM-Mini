@@ -212,10 +212,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         <div className="text-center pb-4 border-b border-slate-100">
           <WelstoryLogo size="lg" className="mx-auto mb-3 shadow-md" />
           <h2 className="text-lg font-bold text-slate-900">
-            {mode === 'login' ? 'Tổng Hợp Tiền Ăn Ngoài' : 'Yêu Cầu Quên Mật Khẩu'}
+            {mode === 'login' ? 'Hệ thống quản lý công việc' : 'Yêu Cầu Quên Mật Khẩu'}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            {mode === 'login' ? 'Hệ thống quản lý & thanh toán tiền ăn' : 'Gửi yêu cầu tạo mật khẩu mới tới Admin'}
+            {mode === 'login' ? 'Bộ phận HR/Welstory Việt Nam' : 'Gửi yêu cầu tạo mật khẩu mới tới Admin'}
           </p>
         </div>
 
