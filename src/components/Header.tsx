@@ -18,15 +18,16 @@ import {
   Target,
   Clock,
   Bell,
-  StickyNote
+  StickyNote,
+  UserCog
 } from 'lucide-react';
 import { AuthUser, AppNotification, Employee } from '../types';
 import { WelstoryLogo } from './WelstoryLogo';
 import { NotificationDropdown } from './NotificationDropdown';
 
 interface HeaderProps {
-  activeTab: 'meal' | 'mbo' | 'tasks' | 'notes' | 'employees';
-  setActiveTab: (tab: 'meal' | 'mbo' | 'tasks' | 'notes' | 'employees') => void;
+  activeTab: 'meal' | 'mbo' | 'tasks' | 'notes' | 'employees' | 'ai-chat';
+  setActiveTab: (tab: 'meal' | 'mbo' | 'tasks' | 'notes' | 'employees' | 'ai-chat') => void;
   activeMealTab: 'summary' | 'matrix' | 'personal' | 'dashboard';
   setActiveMealTab: (tab: 'summary' | 'matrix' | 'personal' | 'dashboard') => void;
   currentUser: AuthUser | null;
@@ -213,7 +214,12 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User Account Capsule */}
           {currentUser ? (
             <div className="flex items-center gap-2 bg-slate-100/90 pl-2.5 pr-1.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
-              <div className="text-left hidden lg:block">
+              <button
+                type="button"
+                onClick={onOpenChangePassword}
+                title="Bấm để xem & sửa thông tin cá nhân (SĐT, Email, Mật khẩu)"
+                className="text-left hidden lg:block hover:opacity-80 transition-opacity cursor-pointer"
+              >
                 <div className="text-xs font-bold text-slate-900 leading-tight truncate max-w-[130px]">
                   {currentUser.name}
                 </div>
@@ -224,25 +230,29 @@ export const Header: React.FC<HeaderProps> = ({
                     {currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'quan_ly_nhan_su' ? 'Quản lý' : 'Nhân viên'}
                   </span>
                 </div>
-              </div>
+              </button>
 
               {/* Avatar circle */}
-              <div
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0 ${
+              <button
+                type="button"
+                onClick={onOpenChangePassword}
+                title="Thông tin cá nhân & Đổi mật khẩu"
+                className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0 cursor-pointer hover:scale-105 transition-transform ${
                   currentUser.avatarColor || 'bg-emerald-600'
                 }`}
               >
                 {currentUser.name.split(' ').pop()?.charAt(0)}
-              </div>
+              </button>
 
-              {/* Change Password Button */}
+              {/* Personal Profile & Password Settings Button */}
               {onOpenChangePassword && (
                 <button
                   type="button"
                   onClick={onOpenChangePassword}
-                  className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                  className="p-1 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                  title="Thông tin cá nhân (SĐT, Email, Mật khẩu)"
                 >
-                  <KeyRound className="w-3.5 h-3.5" />
+                  <UserCog className="w-3.5 h-3.5" />
                 </button>
               )}
 
@@ -355,6 +365,23 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
                 </button>
               )}
+
+              {/* Tab: Trợ Lý AI Báo Cáo */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('ai-chat')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap relative ${
+                  activeTab === 'ai-chat'
+                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    : 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 hover:text-emerald-900'
+                }`}
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${activeTab === 'ai-chat' ? 'text-amber-300 animate-pulse' : 'text-amber-500'}`} />
+                <span>Trợ Lý AI Báo Cáo</span>
+                <span className="ml-0.5 px-1.5 py-0.2 text-[9px] bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black rounded-full shadow-2xs">
+                  GEMINI
+                </span>
+              </button>
             </nav>
           </div>
 

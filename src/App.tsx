@@ -16,10 +16,12 @@ import { SettingsModal } from './components/SettingsModal';
 import { PrintTemplate } from './components/PrintTemplate';
 import { LoginModal } from './components/LoginModal';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import { YearMonthDashboard } from './components/YearMonthDashboard';
 import { MBOManager } from './components/MBOManager';
 import { TaskManager } from './components/TaskManager';
 import { NoteManager } from './components/NoteManager';
+import { AIChatBot } from './components/AIChatBot';
 import { SendNotificationEmailModal } from './components/SendNotificationEmailModal';
 import { Employee, EmployeeMealData, CycleConfig, AppSettings, AuthUser, MealSession, PasswordResetRequest, MBO, Task, AppNotification, WorkNote } from './types';
 import { getCurrentCycle, isFutureDate } from './utils/cycleHelper';
@@ -181,8 +183,9 @@ export default function App() {
 
   const [emailModalNotification, setEmailModalNotification] = useState<AppNotification | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'meal' | 'mbo' | 'tasks' | 'notes' | 'employees'>('meal');
+  const [activeTab, setActiveTab] = useState<'meal' | 'mbo' | 'tasks' | 'notes' | 'employees' | 'ai-chat'>('meal');
   const [activeMealTab, setActiveMealTab] = useState<'personal' | 'summary' | 'matrix' | 'dashboard'>('personal');
+  const [showFloatingAIChat, setShowFloatingAIChat] = useState(false);
   const [notes, setNotes] = useState<WorkNote[]>(() => {
     try {
       const saved = localStorage.getItem('welstory_notes_v1');
@@ -292,6 +295,14 @@ export default function App() {
       if (sysConfig.notifications && Array.isArray(sysConfig.notifications)) {
         setNotifications(sysConfig.notifications);
       }
+      if (sysConfig.tasks && Array.isArray(sysConfig.tasks) && sysConfig.tasks.length > 0) {
+        setTasks((prev) => {
+          const map = new Map<string, Task>();
+          prev.forEach((t) => map.set(t.id, t));
+          sysConfig.tasks!.forEach((t) => map.set(t.id, t));
+          return Array.from(map.values());
+        });
+      }
     });
 
     // 1. Listen to instant live broadcast events from all devices (< 500ms)
@@ -309,6 +320,13 @@ export default function App() {
         showNotification(`Thông báo mới: ${event.notification.title}`, 'info');
       } else if (event.type === 'NOTIFICATIONS_SYNC' && event.notifications) {
         setNotifications(event.notifications);
+      } else if (event.type === 'tasks_update' && Array.isArray(event.tasks)) {
+        setTasks((prev) => {
+          const map = new Map<string, Task>();
+          prev.forEach((t) => map.set(t.id, t));
+          event.tasks.forEach((t: Task) => map.set(t.id, t));
+          return Array.from(map.values());
+        });
       } else if (event.type === 'MEAL_SAVE' && event.allRecords) {
         setMealData((prev) => {
           const next = {
@@ -389,6 +407,14 @@ export default function App() {
       if (cloud.notifications && Array.isArray(cloud.notifications) && cloud.notifications.length > 0) {
         setNotifications(cloud.notifications);
       }
+      if (cloud.tasks && Array.isArray(cloud.tasks) && cloud.tasks.length > 0) {
+        setTasks((prev) => {
+          const map = new Map<string, Task>();
+          prev.forEach((t) => map.set(t.id, t));
+          cloud.tasks!.forEach((t) => map.set(t.id, t));
+          return Array.from(map.values());
+        });
+      }
     });
 
     // 3. Fallback server polling
@@ -419,6 +445,15 @@ export default function App() {
           }
           if (data.passwordRequests) {
             setPasswordRequests(data.passwordRequests);
+          }
+          if (data.tasks && Array.isArray(data.tasks) && data.tasks.length > 0) {
+            const serverTasks = data.tasks;
+            setTasks((prev) => {
+              const map = new Map<string, Task>();
+              prev.forEach((t) => map.set(t.id, t));
+              serverTasks.forEach((t) => map.set(t.id, t));
+              return Array.from(map.values());
+            });
           }
         }
       } catch (err) {
@@ -509,12 +544,36 @@ export default function App() {
     }
   }, [mbos]);
 
+  const isInitialTasksMount = useRef(true);
   useEffect(() => {
     try {
       localStorage.setItem('welstory_tasks_v2', JSON.stringify(tasks));
     } catch (e) {
       console.error('Failed to save tasks', e);
     }
+
+    if (isInitialTasksMount.current) {
+      isInitialTasksMount.current = false;
+      return;
+    }
+
+    // 1. Central Server Sync
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks }),
+    }).catch((err) => console.warn('Sync tasks to server error:', err));
+
+    // 2. Realtime Firestore Sync
+    saveSystemConfigToFirestore({ tasks }).catch((err) =>
+      console.warn('Sync tasks to firestore error:', err)
+    );
+
+    // 3. Master Cloud & SSE Live Broadcast
+    saveMasterMealDataToCloud(mealDataRef.current, { tasks }).catch((err) =>
+      console.warn('Sync tasks to cloud error:', err)
+    );
+    broadcastLiveEvent({ type: 'tasks_update', tasks });
   }, [tasks]);
 
   useEffect(() => {
@@ -574,6 +633,38 @@ export default function App() {
       syncEmployeesOnServer(updated);
       return updated;
     });
+  };
+
+  const handleUpdateProfile = (
+    employeeId: string,
+    updates: { phone?: string; email?: string; password?: string }
+  ) => {
+    setEmployees((prev) => {
+      const updated = prev.map((e) => {
+        if (e.id === employeeId) {
+          return {
+            ...e,
+            phone: updates.phone !== undefined ? updates.phone : e.phone,
+            email: updates.email !== undefined ? updates.email : e.email,
+            password: updates.password !== undefined && updates.password !== '' ? updates.password : e.password,
+          };
+        }
+        return e;
+      });
+      syncEmployeesOnServer(updated);
+      return updated;
+    });
+
+    setCurrentUser((prev) => {
+      if (!prev || prev.id !== employeeId) return prev;
+      return {
+        ...prev,
+        phone: updates.phone !== undefined ? updates.phone : prev.phone,
+        email: updates.email !== undefined ? updates.email : prev.email,
+      };
+    });
+
+    showNotification('Đã cập nhật thông tin cá nhân (SĐT, Email, Mật khẩu) thành công!', 'success');
   };
 
   const handleSetSettings = (newSettings: AppSettings) => {
@@ -1181,6 +1272,7 @@ export default function App() {
             onSaveDayMeal={handleSaveDayMeal}
             onBatchCheckin={handleBatchCheckin}
             onUpdatePassword={handleUpdatePassword}
+            onOpenProfileModal={() => setShowChangePasswordModal(true)}
             onExportPersonalExcel={handleExportIndividual}
             onOpenLogin={() => setShowLoginModal(true)}
           />
@@ -1261,22 +1353,49 @@ export default function App() {
             notes={notes}
             setNotes={setNotes}
             currentUser={currentUser as Employee}
-            onConvertNoteToTask={(note) => {
+            onConvertNoteToTask={(note, targetEmployeeId, options) => {
+              const assignedTarget = targetEmployeeId || note.employeeId || (currentUser?.id ?? employees[0]?.id);
               const newTask: Task = {
                 id: `task-${Date.now()}`,
-                employeeId: note.employeeId || (currentUser?.id ?? employees[0]?.id),
+                employeeId: assignedTarget,
                 title: note.title,
                 description: note.content,
-                dueDate: note.date || new Date().toISOString().slice(0, 10),
+                dueDate: options?.dueDate || note.date || new Date().toISOString().slice(0, 10),
                 status: 'pending',
                 assignedBy: currentUser?.id ?? employees[0]?.id,
-                priority: 'medium',
+                priority: options?.priority || 'medium',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
               };
               setTasks((prev) => [newTask, ...prev]);
+              // Also notify
+              const targetEmp = employees.find((e) => e.id === assignedTarget);
+              handleDispatchNotification({
+                type: 'task_progress',
+                title: 'Nhiệm vụ mới từ Ghi chú',
+                message: `Task "${note.title}" đã được giao cho ${targetEmp?.name || assignedTarget}`,
+                employeeId: assignedTarget,
+                employeeName: targetEmp?.name || assignedTarget,
+                department: targetEmp?.department || 'Nhân sự',
+                targetId: newTask.id,
+                targetTitle: newTask.title,
+                newStatus: 'pending',
+                progress: 0,
+              });
+              showNotification(`Đã chuyển thành Task và giao cho ${targetEmp?.name || assignedTarget}!`, 'success');
               setActiveTab('tasks');
             }}
+          />
+        )}
+
+        {/* AI Chatbot tab: Trợ lý AI Báo Cáo Tuần */}
+        {activeTab === 'ai-chat' && (
+          <AIChatBot
+            tasks={tasks}
+            employees={employees}
+            mbos={mbos}
+            notes={notes}
+            currentUser={currentUser}
           />
         )}
       </main>
@@ -1344,12 +1463,12 @@ export default function App() {
         />
       )}
 
-      {/* Change Password Modal */}
-      <ChangePasswordModal
+      {/* Employee Profile, Phone, Email & Password Modal */}
+      <UserProfileModal
         isOpen={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}
         currentUser={currentUser}
-        onUpdatePassword={handleUpdatePassword}
+        onUpdateProfile={handleUpdateProfile}
       />
 
       {/* Send Notification Email Modal */}
@@ -1360,6 +1479,47 @@ export default function App() {
         onClose={() => setEmailModalNotification(null)}
         onSuccessToast={(msg) => showNotification(msg, 'success')}
       />
+
+      {/* Floating AI Assistant Quick Trigger (Available across all modules) */}
+      {activeTab !== 'ai-chat' && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <button
+            onClick={() => setShowFloatingAIChat((prev) => !prev)}
+            title="Mở nhanh Trợ lý AI Báo Cáo Tuần (Gemini 3.8 Flash)"
+            className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-400/40 group"
+          >
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+              <span className="text-xs">✨</span>
+            </div>
+            <div className="text-left hidden sm:block">
+              <div className="text-xs font-bold leading-tight flex items-center gap-1.5">
+                <span>Trợ Lý Báo Cáo AI</span>
+                <span className="px-1 py-0.2 bg-amber-400 text-slate-900 text-[9px] font-black rounded">
+                  GEMINI
+                </span>
+              </div>
+              <div className="text-[10px] text-emerald-100/90 leading-tight">
+                Tổng hợp báo cáo tuần
+              </div>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Floating AI Assistant Compact Drawer Modal */}
+      {showFloatingAIChat && (
+        <div className="fixed bottom-20 right-4 sm:right-6 z-50 w-[95vw] sm:w-[500px] max-w-full shadow-2xl animate-in slide-in-from-bottom-5">
+          <AIChatBot
+            tasks={tasks}
+            employees={employees}
+            mbos={mbos}
+            notes={notes}
+            currentUser={currentUser}
+            mode="compact"
+            onClose={() => setShowFloatingAIChat(false)}
+          />
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="no-print mt-auto py-4 border-t border-slate-200/80 text-center text-xs text-slate-500">

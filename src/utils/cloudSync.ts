@@ -1,4 +1,4 @@
-import { EmployeeMealData, Employee, AppSettings, PasswordResetRequest, AppNotification } from '../types';
+import { EmployeeMealData, Employee, AppSettings, PasswordResetRequest, AppNotification, Task, WorkNote } from '../types';
 
 export const MASTER_CLOUD_ID = 'ff808181a09d98f701a0ffbadd936765';
 const REST_API_URL = `https://api.restful-api.dev/objects/${MASTER_CLOUD_ID}`;
@@ -69,6 +69,8 @@ export async function fetchMasterCloudData(): Promise<{
   settings?: AppSettings;
   passwordRequests?: PasswordResetRequest[];
   notifications?: AppNotification[];
+  tasks?: Task[];
+  notes?: WorkNote[];
   updatedAt?: number;
 } | null> {
   try {
@@ -93,6 +95,8 @@ export async function saveMasterMealDataToCloud(
     settings?: AppSettings;
     passwordRequests?: PasswordResetRequest[];
     notifications?: AppNotification[];
+    tasks?: Task[];
+    notes?: WorkNote[];
   }
 ) {
   try {
@@ -107,6 +111,8 @@ export async function saveMasterMealDataToCloud(
           settings: extraData?.settings,
           passwordRequests: extraData?.passwordRequests,
           notifications: extraData?.notifications,
+          tasks: extraData?.tasks,
+          notes: extraData?.notes,
           updatedAt: Date.now(),
         },
       }),

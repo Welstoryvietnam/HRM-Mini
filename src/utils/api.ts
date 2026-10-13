@@ -1,10 +1,12 @@
-import { Employee, EmployeeMealData, AppSettings, PasswordResetRequest, MealSession } from '../types';
+import { Employee, EmployeeMealData, AppSettings, PasswordResetRequest, MealSession, Task, WorkNote } from '../types';
 
 export interface ServerDataResponse {
   employees: Employee[];
   mealData: Record<string, EmployeeMealData>;
   settings: AppSettings;
   passwordRequests: PasswordResetRequest[];
+  tasks?: Task[];
+  notes?: WorkNote[];
   version: number;
 }
 

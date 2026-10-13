@@ -37,8 +37,11 @@ import {
   CalendarDays,
   CalendarCheck,
   CalendarPlus,
+  Eye,
 } from 'lucide-react';
 import { Task, Employee, AppNotification } from '../types';
+import { TaskCalendarView } from './TaskCalendarView';
+import { TaskDetailModal } from './TaskDetailModal';
 import {
   initCalendarAuth,
   signInGoogleCalendar,
@@ -68,8 +71,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const isAdminOrManager =
     currentUser?.role === 'admin' || currentUser?.role === 'quan_ly_nhan_su';
 
-  // View mode: 'kanban' | 'list' | 'departments'
-  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'departments'>('kanban');
+  // View mode: 'calendar' | 'kanban' | 'list' | 'departments'
+  const [viewMode, setViewMode] = useState<'calendar' | 'kanban' | 'list' | 'departments'>('calendar');
 
   // Form modal (Giao việc mới / Chỉnh sửa)
   const [isAdding, setIsAdding] = useState(false);
@@ -119,6 +122,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     task: Task;
     channel: 'all' | 'zalo' | 'email';
   } | null>(null);
+
+  // Detail Modal for viewing full task details
+  const [detailModalTask, setDetailModalTask] = useState<Task | null>(null);
 
   // Global Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -307,10 +313,11 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     [filteredTasks]
   );
 
-  // Open Add modal with optional pre-selected employee or status
+  // Open Add modal with optional pre-selected employee or status or dueDate
   const openAddModal = (
     defaultStatus: Task['status'] = 'pending',
-    targetEmployeeId?: string
+    targetEmployeeId?: string,
+    targetDueDate?: string
   ) => {
     setIsAdding(true);
     setEditingId(null);
@@ -324,9 +331,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     setFormDepartment(selectedEmp?.department || 'all');
     setTitle('');
     setDescription('');
-    // Default due date: if specific month is chosen, place deadline in that month
+    // Default due date: if specific targetDueDate is passed, use it; otherwise fallback to month
     const defaultDue =
-      selectedMonth !== 'all' ? `${selectedMonth}-15` : '2026-10-15';
+      targetDueDate ||
+      (selectedMonth !== 'all' ? `${selectedMonth}-15` : '2026-10-15');
     setDueDate(defaultDue);
     setPriority('medium');
     setStatus(defaultStatus);
@@ -529,12 +537,46 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       setTasks([savedTask, ...tasks]);
       showToast(`Đã giao công việc mới cho ${getEmployee(formAssigneeId)?.name || 'nhân viên'}!`);
 
-      // Trigger notification modal if enabled
+      // Dispatch real-time notification to the assigned employee
+      if (onNotifyUpdate) {
+        const emp = getEmployee(formAssigneeId);
+        onNotifyUpdate({
+          type: 'task_progress',
+          title: `Nhiệm vụ mới được giao: ${savedTask.title}`,
+          message: `${currentUser?.name || 'Quản lý'} đã giao công việc "${savedTask.title}" cho bạn (Hạn chót: ${savedTask.dueDate}).`,
+          employeeId: savedTask.employeeId,
+          employeeName: emp?.name || savedTask.employeeId,
+          department: emp?.department || 'HR Group',
+          targetId: savedTask.id,
+          targetTitle: savedTask.title,
+          newStatus: savedTask.status,
+          progress: savedTask.progress || 0,
+        });
+      }
+
+      // Ensure active filters do not hide the newly created task
+      if (savedTask.dueDate) {
+        setSelectedMonth(savedTask.dueDate.slice(0, 7));
+      }
+      setFilterEmployeeId('all');
+      setFilterDepartment('all');
+      setMyTasksOnly(false);
+
+      // Immediate backend database sync
+      fetch('/api/tasks/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task: savedTask }),
+      }).catch((err) => console.warn('Sync task create to server error:', err));
+
+      // Trigger notification modal if enabled, otherwise open task detail directly
       if (notifyViaZalo || notifyViaEmail) {
         setNotificationTask({
           task: savedTask,
           channel: 'all',
         });
+      } else {
+        setDetailModalTask(savedTask);
       }
     }
 
@@ -897,8 +939,19 @@ Welstory HR Management System`;
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {/* View Mode Toggle: Kanban | List | Departments */}
+          {/* View Mode Toggle: Calendar | Kanban | List | Departments */}
           <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs">
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                viewMode === 'calendar'
+                  ? 'bg-white text-emerald-800 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Bảng Lịch Làm Việc</span>
+            </button>
             <button
               onClick={() => setViewMode('kanban')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
@@ -1321,6 +1374,29 @@ Welstory HR Management System`;
 
       {/* 4. MAIN VIEWS */}
 
+      {/* VIEW 0: BẢNG LỊCH LÀM VIỆC (THỨ 2 ĐẾN CHỦ NHẬT / LỊCH THÁNG) */}
+      {viewMode === 'calendar' && (
+        <TaskCalendarView
+          tasks={filteredTasks}
+          employees={employees}
+          selectedMonth={selectedMonth}
+          onSelectMonth={(m) => setSelectedMonth(m)}
+          onOpenAddModal={(st, empId, due) => openAddModal(st, empId, due)}
+          onOpenEditModal={(t) => openEditModal(t)}
+          onOpenProgressModal={(t) => openProgressModal(t)}
+          onQuickStatusChange={(t, st) => handleQuickStatusChange(t, st)}
+          onDeleteTask={(id, tTitle) => handleDeleteTask(id, tTitle)}
+          onOpenZaloChat={(t) => handleOpenZaloChat(t)}
+          onOpenEmail={(t) => handleOpenEmail(t)}
+          onSyncTaskToCalendar={(t) => handleSyncTaskToCalendar(t)}
+          onOpenNotificationModal={(t) => setNotificationTask({ task: t, channel: 'all' })}
+          onViewDetail={(t) => setDetailModalTask(t)}
+          getEmployee={getEmployee}
+          getPriorityBadge={getPriorityBadge}
+          getDueBadge={getDueBadge}
+        />
+      )}
+
       {/* VIEW A: KANBAN BOARD */}
       {viewMode === 'kanban' && (
         <div className="space-y-4">
@@ -1383,6 +1459,7 @@ Welstory HR Management System`;
                     task={task}
                     assignee={getEmployee(task.employeeId)}
                     assigner={getEmployee(task.assignedBy)}
+                    onViewDetail={() => setDetailModalTask(task)}
                     onEdit={() => openEditModal(task)}
                     onDelete={() => handleDeleteTask(task.id, task.title)}
                     onProgressClick={() => openProgressModal(task)}
@@ -1432,6 +1509,7 @@ Welstory HR Management System`;
                     task={task}
                     assignee={getEmployee(task.employeeId)}
                     assigner={getEmployee(task.assignedBy)}
+                    onViewDetail={() => setDetailModalTask(task)}
                     onEdit={() => openEditModal(task)}
                     onDelete={() => handleDeleteTask(task.id, task.title)}
                     onProgressClick={() => openProgressModal(task)}
@@ -1481,6 +1559,7 @@ Welstory HR Management System`;
                     task={task}
                     assignee={getEmployee(task.employeeId)}
                     assigner={getEmployee(task.assignedBy)}
+                    onViewDetail={() => setDetailModalTask(task)}
                     onEdit={() => openEditModal(task)}
                     onDelete={() => handleDeleteTask(task.id, task.title)}
                     onProgressClick={() => openProgressModal(task)}
@@ -1553,8 +1632,13 @@ Welstory HR Management System`;
                           {idx + 1}
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900 text-xs">
-                            {task.title}
+                          <div
+                            onClick={() => setDetailModalTask(task)}
+                            className="font-bold text-slate-900 text-xs hover:text-emerald-700 cursor-pointer flex items-center gap-1.5 group"
+                            title="Bấm để xem toàn bộ chi tiết công việc"
+                          >
+                            <span className="group-hover:underline">{task.title}</span>
+                            <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
                           </div>
                           {task.description && (
                             <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
@@ -1654,6 +1738,14 @@ Welstory HR Management System`;
                         </td>
                         <td className="py-3.5 px-4 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setDetailModalTask(task)}
+                              title="Xem chi tiết toàn bộ công việc"
+                              className="p-1.5 text-sky-700 hover:text-sky-900 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={() => openProgressModal(task)}
                               title="Cập nhật tiến độ & Điền kết quả"
@@ -2593,10 +2685,30 @@ Welstory HR Management System`;
                   <div className="flex items-center justify-end pt-2 border-t border-slate-100">
                     <button
                       type="button"
-                      onClick={() => setNotificationTask(null)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold cursor-pointer"
+                      onClick={() => {
+                        const assignedT = notificationTask.task;
+                        setNotificationTask(null);
+                        const empObj = getEmployee(assignedT.employeeId);
+                        if (assignedT.dueDate) {
+                          setSelectedMonth(assignedT.dueDate.slice(0, 7));
+                        }
+                        setFilterEmployeeId('all');
+                        setFilterDepartment('all');
+                        setMyTasksOnly(false);
+                        setSearchQuery('');
+                        setFilterStatus('all');
+                        setFilterPriority('all');
+                        if (viewMode === 'departments') {
+                          setViewMode('calendar');
+                        }
+                        // Open detail modal to immediately show the task
+                        setDetailModalTask(assignedT);
+                        showToast(`✅ Đã giao nhiệm vụ thành công cho ${empObj?.name || 'nhân sự'}! Công việc đã được chuyển và hiển thị chi tiết.`);
+                      }}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold cursor-pointer text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
                     >
-                      Đã Xong
+                      <Check className="w-4 h-4" />
+                      <span>Đã Xong — Chuyển Đến Nhân Viên & Xem Task</span>
                     </button>
                   </div>
                 </div>
@@ -2605,6 +2717,32 @@ Welstory HR Management System`;
           </div>
         </div>
       )}
+
+      {/* 8. MODAL XEM CHI TIẾT CÔNG VIỆC (TASK DETAIL MODAL) */}
+      <TaskDetailModal
+        task={detailModalTask}
+        isOpen={Boolean(detailModalTask)}
+        onClose={() => setDetailModalTask(null)}
+        assignee={detailModalTask ? getEmployee(detailModalTask.employeeId) : undefined}
+        assigner={detailModalTask ? getEmployee(detailModalTask.assignedBy) : undefined}
+        onEdit={(t) => {
+          setDetailModalTask(null);
+          openEditModal(t);
+        }}
+        onProgressClick={(t) => {
+          setDetailModalTask(null);
+          openProgressModal(t);
+        }}
+        onStatusChange={(t, st) => {
+          handleQuickStatusChange(t, st);
+          setDetailModalTask((prev) => (prev ? { ...prev, status: st } : null));
+        }}
+        onZaloClick={(t) => handleOpenZaloChat(t)}
+        onEmailClick={(t) => handleOpenEmail(t)}
+        onCalendarSync={(t) => handleSyncTaskToCalendar(t)}
+        getDueBadge={getDueBadge}
+        getPriorityBadge={getPriorityBadge}
+      />
     </div>
   );
 };
@@ -2622,6 +2760,7 @@ interface TaskCardProps {
   onZaloClick: () => void;
   onEmailClick: () => void;
   onCalendarSync?: () => void;
+  onViewDetail?: () => void;
   getDueBadge: (dueDate: string, isCompleted: boolean) => React.ReactNode;
   getPriorityBadge: (p?: Task['priority']) => React.ReactNode;
 }
@@ -2638,6 +2777,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onZaloClick,
   onEmailClick,
   onCalendarSync,
+  onViewDetail,
   getDueBadge,
   getPriorityBadge,
 }) => {
@@ -2655,9 +2795,27 @@ const TaskCard: React.FC<TaskCardProps> = ({
         </div>
 
         {/* Task Title */}
-        <h4 className="font-bold text-slate-900 text-xs leading-snug">
-          {task.title}
-        </h4>
+        <div className="flex items-start justify-between gap-1">
+          <h4
+            onClick={onViewDetail}
+            className={`font-bold text-slate-900 text-xs leading-snug flex-1 ${
+              onViewDetail ? 'cursor-pointer hover:text-emerald-700' : ''
+            }`}
+            title="Bấm để xem toàn bộ chi tiết công việc"
+          >
+            {task.title}
+          </h4>
+          {onViewDetail && (
+            <button
+              type="button"
+              onClick={onViewDetail}
+              title="Xem chi tiết công việc"
+              className="p-1 text-slate-400 hover:text-sky-700 hover:bg-sky-50 rounded cursor-pointer transition-colors shrink-0"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
 
         {/* Description */}
         {task.description && (

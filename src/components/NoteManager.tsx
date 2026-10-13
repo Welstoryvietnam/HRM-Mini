@@ -31,7 +31,11 @@ interface NoteManagerProps {
   notes: WorkNote[];
   setNotes: (notes: WorkNote[]) => void;
   currentUser: Employee | null;
-  onConvertNoteToTask?: (note: WorkNote) => void;
+  onConvertNoteToTask?: (
+    note: WorkNote,
+    targetEmployeeId?: string,
+    options?: { dueDate?: string; priority?: Task['priority'] }
+  ) => void;
 }
 
 const CATEGORY_META: Record<
@@ -128,6 +132,12 @@ export const NoteManager: React.FC<NoteManagerProps> = ({
   // Form Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+
+  // Convert Note to Task Modal state (Select target employee, due date, priority)
+  const [convertingNote, setConvertingNote] = useState<WorkNote | null>(null);
+  const [convertTargetEmployeeId, setConvertTargetEmployeeId] = useState<string>('');
+  const [convertDueDate, setConvertDueDate] = useState<string>('');
+  const [convertPriority, setConvertPriority] = useState<Task['priority']>('medium');
 
   // Form fields
   const [formEmployeeId, setFormEmployeeId] = useState<string>(currentUser?.id || '');
@@ -271,6 +281,26 @@ export const NoteManager: React.FC<NoteManagerProps> = ({
   const getEmployeeName = (id: string) => {
     const emp = employees.find((e) => e.id === id);
     return emp ? emp.name : `NV (${id})`;
+  };
+
+  // Convert note to task handlers
+  const handleOpenConvertModal = (note: WorkNote, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setConvertingNote(note);
+    // Default to the note's owner or currentUser or first employee
+    setConvertTargetEmployeeId(note.employeeId || currentUser?.id || employees[0]?.id || '');
+    // Default dueDate: note's date or today
+    setConvertDueDate(note.date || new Date().toISOString().slice(0, 10));
+    setConvertPriority('medium');
+  };
+
+  const handleConfirmConvert = () => {
+    if (!convertingNote || !onConvertNoteToTask) return;
+    onConvertNoteToTask(convertingNote, convertTargetEmployeeId, {
+      dueDate: convertDueDate,
+      priority: convertPriority,
+    });
+    setConvertingNote(null);
   };
 
   // Preset quick note templates for HR
@@ -513,8 +543,8 @@ export const NoteManager: React.FC<NoteManagerProps> = ({
                       {/* Convert to Task button */}
                       {onConvertNoteToTask && (
                         <button
-                          onClick={() => onConvertNoteToTask(note)}
-                          title="Tạo Task giao việc từ Ghi chú này"
+                          onClick={(e) => handleOpenConvertModal(note, e)}
+                          title="Chuyển ghi chú thành Task & chọn nhân viên phụ trách"
                           className="p-1.5 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer flex items-center gap-1 font-bold text-[11px]"
                         >
                           <Briefcase className="w-3.5 h-3.5" />
@@ -753,6 +783,128 @@ export const NoteManager: React.FC<NoteManagerProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Convert Note to Task Modal (Chọn nhân viên phụ trách & thiết lập Task) */}
+      {convertingNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <Briefcase className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Chuyển Ghi Chú Thành Task Công Việc
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Chỉ định nhân viên thực hiện, thời hạn và độ ưu tiên
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConvertingNote(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Note Summary Preview */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Nội dung từ Ghi chú:
+              </div>
+              <div className="text-sm font-bold text-slate-900 line-clamp-1">
+                {convertingNote.title}
+              </div>
+              {convertingNote.content && (
+                <div className="text-xs text-slate-600 line-clamp-2 italic">
+                  {convertingNote.content}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {/* Target Employee Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                  <UserIcon className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Giao việc cho nhân viên nào? <span className="text-rose-500">*</span></span>
+                </label>
+                <select
+                  value={convertTargetEmployeeId}
+                  onChange={(e) => setConvertTargetEmployeeId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+                >
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name} ({emp.id}) — {emp.role === 'admin' ? 'Quản trị viên' : emp.role === 'quan_ly_nhan_su' ? 'Quản lý' : 'Nhân viên'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Nhân viên được chọn sẽ nhận nhiệm vụ này trong danh sách Task và bảng lịch làm việc.
+                </p>
+              </div>
+
+              {/* Due Date & Priority in 2 columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Due Date */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Hạn chót hoàn thành</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={convertDueDate}
+                    onChange={(e) => setConvertDueDate(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono transition-all"
+                  />
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Tag className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Mức độ ưu tiên</span>
+                  </label>
+                  <select
+                    value={convertPriority}
+                    onChange={(e) => setConvertPriority(e.target.value as Task['priority'])}
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold cursor-pointer"
+                  >
+                    <option value="urgent">Khẩn cấp (Urgent)</option>
+                    <option value="high">Cao (High)</option>
+                    <option value="medium">Trung bình (Normal)</option>
+                    <option value="low">Thấp (Low)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setConvertingNote(null)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium text-xs cursor-pointer transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmConvert}
+                className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-all active:scale-95"
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Xác Nhận Tạo Task & Chuyển Sang Lịch</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

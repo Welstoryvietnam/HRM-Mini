@@ -85,6 +85,8 @@ export interface AuthUser {
   role: 'nhan_vien_nhan_su' | 'quan_ly_nhan_su' | 'admin';
   department: string;
   avatarColor?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface MealRecord {
@@ -163,3 +165,14 @@ export interface AppNotification {
   recipientRoles?: ('admin' | 'quan_ly_nhan_su')[];
   recipientEmails?: string[];
 }
+
+export type AppTab = 'meal' | 'mbo' | 'tasks' | 'notes' | 'employees' | 'ai-chat';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  isError?: boolean;
+}
+

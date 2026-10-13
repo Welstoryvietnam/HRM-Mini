@@ -11,7 +11,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { EmployeeMealData, Employee, AppSettings, PasswordResetRequest, AppNotification } from '../types';
+import { EmployeeMealData, Employee, AppSettings, PasswordResetRequest, AppNotification, Task, WorkNote } from '../types';
 import { saveMasterMealDataToCloud, fetchMasterCloudData } from './cloudSync';
 
 // Initialize Firebase App singleton
@@ -157,7 +157,7 @@ export async function fetchAllMealsFromFirestore(): Promise<Record<string, Emplo
 }
 
 /**
- * Real-time subscription to global system configuration (employees, settings, password requests).
+ * Real-time subscription to global system configuration (employees, settings, password requests, tasks, notes).
  */
 export function subscribeToSystemRealtime(
   callback: (config: {
@@ -165,6 +165,8 @@ export function subscribeToSystemRealtime(
     settings?: AppSettings;
     passwordRequests?: PasswordResetRequest[];
     notifications?: AppNotification[];
+    tasks?: Task[];
+    notes?: WorkNote[];
   }) => void
 ): () => void {
   try {
@@ -179,6 +181,8 @@ export function subscribeToSystemRealtime(
             settings: data?.settings,
             passwordRequests: data?.passwordRequests,
             notifications: data?.notifications,
+            tasks: data?.tasks,
+            notes: data?.notes,
           });
         }
       },
@@ -201,6 +205,8 @@ export async function saveSystemConfigToFirestore(payload: {
   settings?: AppSettings;
   passwordRequests?: PasswordResetRequest[];
   notifications?: AppNotification[];
+  tasks?: Task[];
+  notes?: WorkNote[];
 }) {
   try {
     const sysDocRef = doc(db, 'system', 'main');

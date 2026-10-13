@@ -41,6 +41,7 @@ interface PersonalCheckinProps {
   ) => void;
   onBatchCheckin: (employeeId: string, dates: string[], mealsCount: number) => void;
   onUpdatePassword?: (employeeId: string, newPass: string) => void;
+  onOpenProfileModal?: () => void;
   onExportPersonalExcel?: (employee: Employee) => void;
   onOpenLogin?: () => void;
 }
@@ -73,6 +74,7 @@ export const PersonalCheckin: React.FC<PersonalCheckinProps> = ({
   onSaveDayMeal,
   onBatchCheckin,
   onUpdatePassword,
+  onOpenProfileModal,
   onExportPersonalExcel,
   onOpenLogin,
 }) => {
@@ -374,16 +376,28 @@ export const PersonalCheckin: React.FC<PersonalCheckinProps> = ({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 text-xs text-emerald-200 mt-1">
+              <div className="flex flex-wrap items-center gap-2.5 text-xs text-emerald-200 mt-1">
                 <span>{currentEmp.department}</span>
-                {currentEmp.notes && <span>· {currentEmp.notes}</span>}
-                <button
-                  onClick={() => setShowPasswordChange(!showPasswordChange)}
-                  className="text-emerald-300 hover:text-white underline text-[11px] ml-1 flex items-center gap-1"
-                >
-                  <KeyRound className="w-3 h-3" />
-                  <span>Đổi mật khẩu</span>
-                </button>
+                {currentEmp.phone && (
+                  <span className="font-mono text-emerald-300">· 📞 {currentEmp.phone}</span>
+                )}
+                {currentEmp.email && (
+                  <span className="text-emerald-300 font-mono text-[11px]">· ✉️ {currentEmp.email}</span>
+                )}
+                {isViewingOwnAccount && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenProfileModal) onOpenProfileModal();
+                      else setShowPasswordChange(!showPasswordChange);
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-800/90 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold border border-emerald-600/60 transition-all cursor-pointer shadow-2xs ml-1"
+                    title="Nhân viên tự chỉnh sửa SĐT, Email và Mật khẩu đăng nhập"
+                  >
+                    <KeyRound className="w-3 h-3 text-emerald-300" />
+                    <span>Cập nhật SĐT, Email & Mật khẩu</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
