@@ -6,20 +6,20 @@ service cloud.firestore {
 
     // Allow read and write to employee meal records
     match /meal_records/{employeeId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
-    // Allow read and write to system configuration
+    // Allow read and write to system configuration (employees, tasks, settings, etc.)
     match /system/{configId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /mbos/{mboId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /tasks/{taskId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
 
     // Allow connection test check

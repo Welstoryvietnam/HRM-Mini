@@ -17,9 +17,13 @@ import {
   Edit2,
   Users,
   Lock,
-  FileSpreadsheet
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  Flag
 } from 'lucide-react';
-import { Employee, EmployeeMealData, CycleConfig, AppSettings, AuthUser, MealSession, MealType } from '../types';
+import { Employee, EmployeeMealData, CycleConfig, AppSettings, AuthUser, MealSession, MealType, Task } from '../types';
 import { getCycleDays, formatVND, formatNumber, formatDateVN } from '../utils/cycleHelper';
 import { getRecordSessions } from '../utils/excelExport';
 
@@ -30,6 +34,9 @@ interface PersonalCheckinProps {
   settings: AppSettings;
   selectedEmployeeId: string;
   currentUser: AuthUser | null;
+  tasks?: Task[];
+  onNavigateToTasks?: () => void;
+  onQuickTaskStatusChange?: (task: Task, newStatus: Task['status']) => void;
   onSelectEmployee: (id: string) => void;
   onSaveDayMeal: (
     employeeId: string,
@@ -70,6 +77,9 @@ export const PersonalCheckin: React.FC<PersonalCheckinProps> = ({
   settings,
   selectedEmployeeId,
   currentUser,
+  tasks = [],
+  onNavigateToTasks,
+  onQuickTaskStatusChange,
   onSelectEmployee,
   onSaveDayMeal,
   onBatchCheckin,
@@ -431,6 +441,153 @@ export const PersonalCheckin: React.FC<PersonalCheckinProps> = ({
           </div>
         </div>
       )}
+
+      {/* Assigned Tasks from Superior (Nhiệm vụ cấp trên giao) */}
+      {currentEmp && (() => {
+        const empTasks = tasks.filter((t) => t.employeeId === currentEmp.id);
+        if (empTasks.length === 0) return null;
+        const pendingCount = empTasks.filter((t) => t.status !== 'completed').length;
+
+        return (
+          <div className="bg-white border-2 border-emerald-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                  <Clock className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                      Công Việc Cấp Trên Giao Cho Bạn
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {empTasks.length} nhiệm vụ
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {pendingCount > 0
+                      ? `Còn ${pendingCount} công việc cần thực hiện hoặc báo cáo kết quả.`
+                      : 'Tuyệt vời! Bạn đã hoàn thành 100% công việc được giao.'}
+                  </p>
+                </div>
+              </div>
+
+              {onNavigateToTasks && (
+                <button
+                  type="button"
+                  onClick={onNavigateToTasks}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer shrink-0"
+                >
+                  <span>Mở Bảng Tasks Chi Tiết</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {empTasks.map((task) => {
+                const isOverdue =
+                  task.status !== 'completed' &&
+                  task.dueDate &&
+                  task.dueDate < new Date().toISOString().slice(0, 10);
+
+                return (
+                  <div
+                    key={task.id}
+                    className={`p-3.5 rounded-xl border transition-all space-y-2.5 ${
+                      task.status === 'completed'
+                        ? 'bg-emerald-50/40 border-emerald-200'
+                        : task.status === 'in-progress'
+                        ? 'bg-sky-50/40 border-sky-200'
+                        : isOverdue
+                        ? 'bg-rose-50/50 border-rose-200'
+                        : 'bg-slate-50/60 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          task.priority === 'urgent'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                            : task.priority === 'high'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        {task.priority === 'urgent'
+                          ? 'Gấp / Khẩn cấp'
+                          : task.priority === 'high'
+                          ? 'Ưu tiên cao'
+                          : 'Tiêu chuẩn'}
+                      </span>
+
+                      {onQuickTaskStatusChange && (
+                        <select
+                          value={task.status}
+                          onChange={(e) =>
+                            onQuickTaskStatusChange(task, e.target.value as Task['status'])
+                          }
+                          className="text-[11px] font-bold px-2 py-0.5 bg-white border border-slate-300 rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        >
+                          <option value="pending">🟡 Chưa làm</option>
+                          <option value="in-progress">🔵 Đang làm</option>
+                          <option value="completed">🟢 Đã xong</option>
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <h5 className="font-bold text-xs text-slate-900 line-clamp-2">
+                        {task.title}
+                      </h5>
+                      {task.description && (
+                        <p className="text-[11px] text-slate-500 line-clamp-2">
+                          {task.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                      <span
+                        className={`font-mono font-semibold ${
+                          isOverdue ? 'text-rose-600 font-bold' : 'text-slate-500'
+                        }`}
+                      >
+                        📅 Hạn: {task.dueDate ? task.dueDate.split('-').reverse().join('/') : 'Không có'}
+                      </span>
+                      <span className="font-bold font-mono text-slate-700">
+                        {task.progress ?? (task.status === 'completed' ? 100 : task.status === 'in-progress' ? 50 : 0)}%
+                      </span>
+                    </div>
+
+                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          task.status === 'completed'
+                            ? 'bg-emerald-500'
+                            : task.status === 'in-progress'
+                            ? 'bg-sky-500'
+                            : 'bg-amber-400'
+                        }`}
+                        style={{
+                          width: `${
+                            task.progress ??
+                            (task.status === 'completed'
+                              ? 100
+                              : task.status === 'in-progress'
+                              ? 50
+                              : 0)
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Change Password Dialog if open */}
       {showPasswordChange && currentEmp && (

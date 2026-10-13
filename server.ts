@@ -564,7 +564,12 @@ app.post('/api/tasks', (req, res) => {
     return res.status(400).json({ error: 'tasks must be an array' });
   }
   const store = loadStore();
-  store.tasks = tasks;
+  const taskMap = new Map<string, any>();
+  // Keep existing tasks
+  (store.tasks || []).forEach((t: any) => taskMap.set(t.id, t));
+  // Merge incoming updates
+  tasks.forEach((t: any) => taskMap.set(t.id, t));
+  store.tasks = Array.from(taskMap.values());
   saveStore(store);
   res.json({ success: true, tasks: store.tasks, version: store.version });
 });

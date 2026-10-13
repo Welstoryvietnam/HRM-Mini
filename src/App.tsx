@@ -32,6 +32,7 @@ import {
 } from './utils/excelExport';
 import {
   fetchServerData,
+  fetchTasksFromServer,
   saveMealOnServer,
   batchCheckinOnServer,
   syncEmployeesOnServer,
@@ -258,6 +259,8 @@ export default function App() {
   };
 
   const lastServerVersionRef = useRef<number>(0);
+  const tasksRef = useRef<Task[]>(tasks);
+  tasksRef.current = tasks;
 
   // Sync state from cloud & real-time SSE live events across all devices
   useEffect(() => {
@@ -464,10 +467,34 @@ export default function App() {
     // Initial fetch
     syncFromServer();
 
+    // Direct initial tasks sync from server so any new machine gets the latest tasks immediately
+    fetchTasksFromServer().then((srvTasks) => {
+      if (!isMounted || !srvTasks || !Array.isArray(srvTasks)) return;
+      if (srvTasks.length > 0) {
+        setTasks((prev) => {
+          const map = new Map<string, Task>();
+          prev.forEach((t) => map.set(t.id, t));
+          srvTasks.forEach((t) => map.set(t.id, t));
+          return Array.from(map.values());
+        });
+      }
+    });
+
     const interval = setInterval(syncFromServer, 3000);
 
     const handleFocus = () => {
       syncFromServer();
+      fetchTasksFromServer().then((srvTasks) => {
+        if (!isMounted || !srvTasks || !Array.isArray(srvTasks)) return;
+        if (srvTasks.length > 0) {
+          setTasks((prev) => {
+            const map = new Map<string, Task>();
+            prev.forEach((t) => map.set(t.id, t));
+            srvTasks.forEach((t) => map.set(t.id, t));
+            return Array.from(map.values());
+          });
+        }
+      });
       fetchMasterCloudData().then((cloud) => {
         if (!isMounted || !cloud) return;
         if (cloud.mealData && Object.keys(cloud.mealData).length > 0) {
@@ -781,6 +808,7 @@ export default function App() {
       settings,
       passwordRequests,
       notifications: nextNotifications,
+      tasks: tasksRef.current,
     });
 
     // 4. Show toast notification on screen
@@ -834,6 +862,36 @@ export default function App() {
     } else {
       setActiveTab('mbo');
     }
+  };
+
+  const handleQuickTaskStatusChange = (task: Task, newStatus: Task['status']) => {
+    const isCompleted = newStatus === 'completed';
+    const newProgress = isCompleted ? 100 : newStatus === 'in-progress' ? Math.max(task.progress || 30, 20) : 0;
+    const updatedTask: Task = {
+      ...task,
+      status: newStatus,
+      progress: newProgress,
+      completedAt: isCompleted ? task.completedAt || new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? updatedTask : t)));
+
+    // Real-time dispatch notification
+    handleDispatchNotification({
+      type: 'task_progress',
+      title: `Tiến độ nhiệm vụ: ${task.title}`,
+      message: `${currentUser?.name || 'Nhân viên'} đã cập nhật trạng thái: "${
+        newStatus === 'completed' ? 'Đã hoàn thành' : newStatus === 'in-progress' ? 'Đang thực hiện' : 'Chưa thực hiện'
+      }" (${newProgress}%)`,
+      employeeId: task.employeeId,
+      employeeName: employees.find((e) => e.id === task.employeeId)?.name || task.employeeId,
+      department: employees.find((e) => e.id === task.employeeId)?.department || 'HR Group',
+      targetId: task.id,
+      targetTitle: task.title,
+      newStatus,
+      progress: newProgress,
+    });
+    showNotification(`Đã cập nhật công việc sang "${newStatus === 'completed' ? 'Đã hoàn thành' : newStatus === 'in-progress' ? 'Đang thực hiện' : 'Chưa thực hiện'}"!`, 'success');
   };
 
   // Handler for single meal toggle (backward compatible)
@@ -932,6 +990,8 @@ export default function App() {
       employees,
       settings,
       passwordRequests,
+      tasks: tasksRef.current,
+      notifications,
     });
 
     // 4. Fallback server sync
@@ -1023,6 +1083,8 @@ export default function App() {
       employees,
       settings,
       passwordRequests,
+      tasks: tasksRef.current,
+      notifications,
     });
 
     batchCheckinOnServer({
@@ -1190,8 +1252,28 @@ export default function App() {
         if (data.passwordRequests) {
           setPasswordRequests(data.passwordRequests);
         }
+        if (data.tasks && Array.isArray(data.tasks) && data.tasks.length > 0) {
+          setTasks((prev) => {
+            const map = new Map<string, Task>();
+            prev.forEach((t) => map.set(t.id, t));
+            data.tasks!.forEach((t) => map.set(t.id, t));
+            return Array.from(map.values());
+          });
+        }
       }
-      showNotification('Đã làm mới dữ liệu từ đám mây!', 'success');
+
+      // 3. Fetch latest tasks from server directly
+      const srvTasks = await fetchTasksFromServer();
+      if (srvTasks && Array.isArray(srvTasks) && srvTasks.length > 0) {
+        setTasks((prev) => {
+          const map = new Map<string, Task>();
+          prev.forEach((t) => map.set(t.id, t));
+          srvTasks.forEach((t) => map.set(t.id, t));
+          return Array.from(map.values());
+        });
+      }
+
+      showNotification('Đã làm mới dữ liệu từ đám mây & máy chủ!', 'success');
     } finally {
       setTimeout(() => setIsSyncing(false), 500);
     }
@@ -1208,6 +1290,7 @@ export default function App() {
           currentUser={currentUser}
           employees={employees}
           notifications={notifications}
+          tasks={tasks}
           onOpenLogin={() => setShowLoginModal(true)}
           onLogout={handleLogout}
           onExportExcel={() => handleExportExcel()}
@@ -1268,6 +1351,9 @@ export default function App() {
             settings={settings}
             selectedEmployeeId={selectedEmployeeId}
             currentUser={currentUser}
+            tasks={tasks}
+            onNavigateToTasks={() => setActiveTab('tasks')}
+            onQuickTaskStatusChange={handleQuickTaskStatusChange}
             onSelectEmployee={setSelectedEmployeeId}
             onSaveDayMeal={handleSaveDayMeal}
             onBatchCheckin={handleBatchCheckin}

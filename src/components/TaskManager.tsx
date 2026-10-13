@@ -240,13 +240,32 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     });
   }, [employees, monthScopedTasks]);
 
+  // Tasks assigned directly to current logged in employee
+  const myAssignedTasks = useMemo(() => {
+    if (!currentUser) return [];
+    return tasks.filter((t) => t.employeeId === currentUser.id);
+  }, [tasks, currentUser]);
+
+  const myAssignedPendingCount = useMemo(() => {
+    return myAssignedTasks.filter((t) => t.status !== 'completed').length;
+  }, [myAssignedTasks]);
+
+  // Check if current user has tasks in other months than selectedMonth
+  const tasksInOtherMonthsCount = useMemo(() => {
+    if (selectedMonth === 'all') return 0;
+    return myAssignedTasks.filter((t) => {
+      const taskMonth = t.dueDate ? t.dueDate.slice(0, 7) : t.createdAt?.slice(0, 7);
+      return taskMonth !== selectedMonth;
+    }).length;
+  }, [myAssignedTasks, selectedMonth]);
+
   // Filtered task list (including month filter)
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       const emp = getEmployee(task.employeeId);
 
-      // Month filter
-      if (selectedMonth !== 'all') {
+      // Month filter: When myTasksOnly is active, do NOT hide tasks from other months so the employee never misses tasks assigned to them!
+      if (selectedMonth !== 'all' && !myTasksOnly) {
         const taskMonth = task.dueDate ? task.dueDate.slice(0, 7) : task.createdAt?.slice(0, 7);
         if (taskMonth !== selectedMonth) {
           return false;
@@ -996,6 +1015,74 @@ Welstory HR Management System`;
           </button>
         </div>
       </div>
+
+      {/* 1.5. Highlight Banner for Assigned Tasks (Công việc cấp trên giao) */}
+      {myAssignedTasks.length > 0 && (
+        <div className="bg-linear-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 sm:p-4.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-2xs shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-emerald-950 text-sm sm:text-base">
+                  Nhiệm vụ cấp trên đã giao cho bạn ({myAssignedTasks.length} công việc)
+                </h4>
+                {myAssignedPendingCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
+                    {myAssignedPendingCount} việc cần làm
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    100% hoàn thành
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                {myTasksOnly
+                  ? 'Đang bật bộ lọc: Đang hiển thị đầy đủ tất cả công việc cấp trên giao cho bạn (không bị ẩn bởi tháng).'
+                  : 'Bấm nút "Xem riêng việc của tôi" để lọc danh sách các nhiệm vụ được giao.'}
+                {tasksInOtherMonthsCount > 0 && !myTasksOnly && (
+                  <span className="text-rose-700 font-bold ml-1.5 inline-block">
+                    (Lưu ý: Có {tasksInOtherMonthsCount} công việc ở tháng khác!)
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setMyTasksOnly((prev) => !prev);
+                if (!myTasksOnly) {
+                  setFilterEmployeeId('all');
+                  setFilterDepartment('all');
+                }
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                myTasksOnly
+                  ? 'bg-emerald-700 text-white ring-2 ring-emerald-400'
+                  : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100/60'
+              }`}
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>{myTasksOnly ? '✓ Đang lọc việc của tôi' : 'Lọc riêng việc của tôi'}</span>
+            </button>
+
+            {selectedMonth !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setSelectedMonth('all')}
+                className="px-3.5 py-2 bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-emerald-300 rounded-xl text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              >
+                Xem tất cả các tháng
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Month Management Bar (Quản Lý Task Theo Tháng) */}
       <div className="bg-linear-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/80 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">

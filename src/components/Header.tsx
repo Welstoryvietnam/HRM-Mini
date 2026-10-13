@@ -21,7 +21,7 @@ import {
   StickyNote,
   UserCog
 } from 'lucide-react';
-import { AuthUser, AppNotification, Employee } from '../types';
+import { AuthUser, AppNotification, Employee, Task } from '../types';
 import { WelstoryLogo } from './WelstoryLogo';
 import { NotificationDropdown } from './NotificationDropdown';
 
@@ -33,6 +33,7 @@ interface HeaderProps {
   currentUser: AuthUser | null;
   employees: Employee[];
   notifications: AppNotification[];
+  tasks?: Task[];
   onOpenLogin: () => void;
   onLogout: () => void;
   onExportExcel: () => void;
@@ -60,6 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   employees,
   notifications,
+  tasks = [],
   onOpenLogin,
   onLogout,
   onExportExcel,
@@ -96,6 +98,14 @@ export const Header: React.FC<HeaderProps> = ({
   const unreadCount = visibleNotifications.filter(
     (n) => !n.readBy.includes(currentUserId)
   ).length;
+
+  // Active tasks assigned to current user by superiors/system
+  const assignedTasksCount = React.useMemo(() => {
+    if (!currentUser || !tasks) return 0;
+    return tasks.filter(
+      (t) => t.employeeId === currentUser.id && t.status !== 'completed'
+    ).length;
+  }, [tasks, currentUser]);
 
   return (
     <header className="no-print bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 shadow-2xs backdrop-blur-md">
@@ -321,7 +331,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('tasks')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap relative ${
                   activeTab === 'tasks'
                     ? 'bg-white text-emerald-950 font-bold shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
@@ -329,6 +339,11 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Clock className={`w-3.5 h-3.5 ${activeTab === 'tasks' ? 'text-emerald-600' : 'text-slate-500'}`} />
                 <span>Tasks</span>
+                {assignedTasksCount > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.2 text-[9px] bg-emerald-600 text-white font-black rounded-full shadow-2xs animate-pulse">
+                    {assignedTasksCount}
+                  </span>
+                )}
               </button>
 
               {/* Tab: Ghi Chú (Notes) */}

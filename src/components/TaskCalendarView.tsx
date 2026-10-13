@@ -83,8 +83,8 @@ export const TaskCalendarView: React.FC<TaskCalendarViewProps> = ({
     return new Date().toISOString().slice(0, 10);
   });
 
-  // Toggle viewing only selected date vs all tasks in the month
-  const [showAllMonthTasks, setShowAllMonthTasks] = useState(false);
+  // Toggle viewing only selected date vs all tasks in the month (default true so tasks are always visible)
+  const [showAllMonthTasks, setShowAllMonthTasks] = useState(true);
 
   // Reference date for navigation
   const [anchorDate, setAnchorDate] = useState<Date>(() => {

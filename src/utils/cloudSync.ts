@@ -62,6 +62,8 @@ export function subscribeToLiveEvents(onEvent: (event: any) => void): () => void
   };
 }
 
+let cachedCloudData: any = {};
+
 // Fetch the single unified master cloud database (1 fast GET request)
 export async function fetchMasterCloudData(): Promise<{
   mealData?: Record<string, EmployeeMealData>;
@@ -78,6 +80,7 @@ export async function fetchMasterCloudData(): Promise<{
     if (!res.ok) return null;
     const item = await res.json();
     if (item?.data) {
+      cachedCloudData = { ...cachedCloudData, ...item.data };
       return item.data;
     }
     return null;
@@ -100,21 +103,24 @@ export async function saveMasterMealDataToCloud(
   }
 ) {
   try {
+    cachedCloudData = {
+      ...cachedCloudData,
+      mealData: mealData || cachedCloudData.mealData || {},
+      ...(extraData?.employees ? { employees: extraData.employees } : {}),
+      ...(extraData?.settings ? { settings: extraData.settings } : {}),
+      ...(extraData?.passwordRequests ? { passwordRequests: extraData.passwordRequests } : {}),
+      ...(extraData?.notifications ? { notifications: extraData.notifications } : {}),
+      ...(extraData?.tasks ? { tasks: extraData.tasks } : {}),
+      ...(extraData?.notes ? { notes: extraData.notes } : {}),
+      updatedAt: Date.now(),
+    };
+
     await fetch(REST_API_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'welstory_master_cloud_v2',
-        data: {
-          mealData,
-          employees: extraData?.employees,
-          settings: extraData?.settings,
-          passwordRequests: extraData?.passwordRequests,
-          notifications: extraData?.notifications,
-          tasks: extraData?.tasks,
-          notes: extraData?.notes,
-          updatedAt: Date.now(),
-        },
+        data: cachedCloudData,
       }),
     });
   } catch (err) {

@@ -12,12 +12,38 @@ export interface ServerDataResponse {
 
 export async function fetchServerData(): Promise<ServerDataResponse | null> {
   try {
-    const res = await fetch('/api/data');
+    const res = await fetch('/api/data', { cache: 'no-store' });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
     console.warn('Could not connect to central server, using local cache', err);
     return null;
+  }
+}
+
+export async function fetchTasksFromServer(): Promise<Task[] | null> {
+  try {
+    const res = await fetch('/api/tasks', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.tasks) ? data.tasks : null;
+  } catch (err) {
+    console.warn('Could not fetch tasks from server:', err);
+    return null;
+  }
+}
+
+export async function saveTasksToServer(tasks: Task[]): Promise<boolean> {
+  try {
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Could not save tasks to server:', err);
+    return false;
   }
 }
 
