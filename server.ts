@@ -559,17 +559,31 @@ app.get('/api/tasks', (_req, res) => {
 });
 
 app.post('/api/tasks', (req, res) => {
-  const { tasks } = req.body;
+  const { tasks, replace } = req.body;
   if (!Array.isArray(tasks)) {
     return res.status(400).json({ error: 'tasks must be an array' });
   }
   const store = loadStore();
-  const taskMap = new Map<string, any>();
-  // Keep existing tasks
-  (store.tasks || []).forEach((t: any) => taskMap.set(t.id, t));
-  // Merge incoming updates
-  tasks.forEach((t: any) => taskMap.set(t.id, t));
-  store.tasks = Array.from(taskMap.values());
+  if (replace !== false) {
+    // When syncing the current task array, replace store.tasks so deletions and edits are preserved
+    store.tasks = tasks;
+  } else {
+    const taskMap = new Map<string, any>();
+    (store.tasks || []).forEach((t: any) => taskMap.set(t.id, t));
+    tasks.forEach((t: any) => taskMap.set(t.id, t));
+    store.tasks = Array.from(taskMap.values());
+  }
+  saveStore(store);
+  res.json({ success: true, tasks: store.tasks, version: store.version });
+});
+
+app.post('/api/tasks/delete', (req, res) => {
+  const { taskId } = req.body;
+  if (!taskId) {
+    return res.status(400).json({ error: 'Missing taskId' });
+  }
+  const store = loadStore();
+  store.tasks = (store.tasks || []).filter((t: any) => t.id !== taskId);
   saveStore(store);
   res.json({ success: true, tasks: store.tasks, version: store.version });
 });

@@ -10,6 +10,7 @@ import {
   writeBatch,
   deleteDoc,
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { EmployeeMealData, Employee, AppSettings, PasswordResetRequest, AppNotification, Task, WorkNote } from '../types';
 import { saveMasterMealDataToCloud, fetchMasterCloudData } from './cloudSync';
@@ -17,11 +18,61 @@ import { saveMasterMealDataToCloud, fetchMasterCloudData } from './cloudSync';
 // Initialize Firebase App singleton
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
+// Initialize Auth
+export const auth = getAuth(app);
+
 // Initialize Firestore targeting the provisioned database ID
 export const db = getFirestore(
   app,
   firebaseConfig.firestoreDatabaseId || '(default)'
 );
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData?.map((provider) => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  return errInfo;
+}
 
 // Validate connection on startup as mandated by Firebase skill
 export async function validateFirestoreConnection() {
@@ -222,5 +273,160 @@ export async function saveSystemConfigToFirestore(payload: {
   } catch (err) {
     console.error('Error saving system config to Firestore:', err);
     return false;
+  }
+}
+
+/**
+ * Real-time subscription to dedicated tasks collection.
+ * Whenever ANY device creates, updates, changes status, or deletes a task,
+ * this listener fires immediately across all devices (< 100ms).
+ */
+export function subscribeToTasksRealtime(
+  callback: (tasks: Task[]) => void
+): () => void {
+  try {
+    const tasksCol = collection(db, 'tasks');
+    const unsubscribe = onSnapshot(
+      tasksCol,
+      (snapshot) => {
+        const result: Task[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data && (data.title || data.employeeId)) {
+            result.push({
+              id: docSnap.id,
+              employeeId: data.employeeId || '',
+              title: data.title || '',
+              description: data.description || '',
+              dueDate: data.dueDate || '',
+              status: data.status || 'pending',
+              assignedBy: data.assignedBy || 'admin',
+              priority: data.priority || 'medium',
+              progress: typeof data.progress === 'number' ? data.progress : (data.status === 'completed' ? 100 : 0),
+              completedAt: data.completedAt || undefined,
+              resultNote: data.resultNote || undefined,
+              createdAt: data.createdAt || new Date().toISOString(),
+              updatedAt: data.updatedAt || new Date().toISOString(),
+              googleCalendarEventId: data.googleCalendarEventId || undefined,
+              googleCalendarLink: data.googleCalendarLink || undefined,
+            });
+          }
+        });
+
+        // Sort tasks: newest or by dueDate descending
+        result.sort((a, b) => {
+          const dateA = a.dueDate || a.createdAt || '';
+          const dateB = b.dueDate || b.createdAt || '';
+          return dateB.localeCompare(dateA);
+        });
+
+        callback(result);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'tasks');
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.error('Error setting up tasks realtime listener:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Save or update a single task in Firestore in real-time.
+ */
+export async function saveTaskToFirestore(task: Task): Promise<boolean> {
+  try {
+    const taskDocRef = doc(db, 'tasks', task.id);
+    const payload = {
+      ...task,
+      updatedAt: new Date().toISOString(),
+    };
+    await setDoc(taskDocRef, payload, { merge: true });
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `tasks/${task.id}`);
+    return false;
+  }
+}
+
+/**
+ * Delete a single task from Firestore in real-time.
+ */
+export async function deleteTaskFromFirestore(taskId: string): Promise<boolean> {
+  try {
+    const taskDocRef = doc(db, 'tasks', taskId);
+    await deleteDoc(taskDocRef);
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `tasks/${taskId}`);
+    return false;
+  }
+}
+
+/**
+ * Batch save all tasks to Firestore (used for initial sync/migration or full restore).
+ */
+export async function saveAllTasksToFirestore(tasks: Task[]): Promise<boolean> {
+  try {
+    if (!tasks || tasks.length === 0) return true;
+    const batch = writeBatch(db);
+    tasks.forEach((task) => {
+      const taskDocRef = doc(db, 'tasks', task.id);
+      batch.set(
+        taskDocRef,
+        {
+          ...task,
+          updatedAt: task.updatedAt || new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    });
+    await batch.commit();
+
+    // Also update system/main backup
+    await saveSystemConfigToFirestore({ tasks });
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'tasks');
+    return false;
+  }
+}
+
+/**
+ * Fetch all tasks from Firestore once.
+ */
+export async function fetchAllTasksFromFirestore(): Promise<Task[]> {
+  try {
+    const tasksCol = collection(db, 'tasks');
+    const snapshot = await getDocs(tasksCol);
+    const result: Task[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data && (data.title || data.employeeId)) {
+        result.push({
+          id: docSnap.id,
+          employeeId: data.employeeId || '',
+          title: data.title || '',
+          description: data.description || '',
+          dueDate: data.dueDate || '',
+          status: data.status || 'pending',
+          assignedBy: data.assignedBy || 'admin',
+          priority: data.priority || 'medium',
+          progress: typeof data.progress === 'number' ? data.progress : (data.status === 'completed' ? 100 : 0),
+          completedAt: data.completedAt || undefined,
+          resultNote: data.resultNote || undefined,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString(),
+          googleCalendarEventId: data.googleCalendarEventId || undefined,
+          googleCalendarLink: data.googleCalendarLink || undefined,
+        });
+      }
+    });
+    return result;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'tasks');
+    return [];
   }
 }

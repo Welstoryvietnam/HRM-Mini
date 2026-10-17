@@ -50,6 +50,8 @@ import {
   getCalendarAccessToken,
   getCalendarUser,
 } from '../utils/googleCalendar';
+import { saveTaskToFirestore, deleteTaskFromFirestore } from '../utils/firebase';
+import { broadcastLiveEvent } from '../utils/cloudSync';
 
 interface TaskManagerProps {
   employees: Employee[];
@@ -420,13 +422,17 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
           },
           token
         );
+        const updatedTask: Task = {
+          ...task,
+          googleCalendarEventId: res.id,
+          googleCalendarLink: res.htmlLink,
+          updatedAt: new Date().toISOString(),
+        };
         setTasks(
-          tasks.map((t) =>
-            t.id === task.id
-              ? { ...t, googleCalendarEventId: res.id, googleCalendarLink: res.htmlLink }
-              : t
-          )
+          tasks.map((t) => (t.id === task.id ? updatedTask : t))
         );
+        saveTaskToFirestore(updatedTask);
+        broadcastLiveEvent({ type: 'task_saved', task: updatedTask });
         showToast('Đã đồng bộ công việc lên Google Calendar thành công!');
       }
     } catch (e: any) {
@@ -518,21 +524,21 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         updatedAt: new Date().toISOString(),
       };
 
+      const finalTask: Task = {
+        ...savedTask,
+        completedAt:
+          status === 'completed'
+            ? existingTask?.completedAt || new Date().toISOString()
+            : undefined,
+        createdAt: existingTask?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
       setTasks(
-        tasks.map((t) =>
-          t.id === editingId
-            ? {
-                ...t,
-                ...savedTask,
-                completedAt:
-                  status === 'completed'
-                    ? t.completedAt || new Date().toISOString()
-                    : undefined,
-                createdAt: t.createdAt,
-              }
-            : t
-        )
+        tasks.map((t) => (t.id === editingId ? finalTask : t))
       );
+      saveTaskToFirestore(finalTask);
+      broadcastLiveEvent({ type: 'task_saved', task: finalTask });
       setEditingId(null);
       showToast('Đã cập nhật thông tin công việc thành công!');
     } else {
@@ -554,6 +560,8 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         updatedAt: new Date().toISOString(),
       };
       setTasks([savedTask, ...tasks]);
+      saveTaskToFirestore(savedTask);
+      broadcastLiveEvent({ type: 'task_saved', task: savedTask });
       showToast(`Đã giao công việc mới cho ${getEmployee(formAssigneeId)?.name || 'nhân viên'}!`);
 
       // Dispatch real-time notification to the assigned employee
@@ -606,6 +614,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const handleDeleteTask = (id: string, taskTitle: string) => {
     if (confirm(`Bạn có chắc chắn muốn xóa công việc "${taskTitle}"?`)) {
       setTasks(tasks.filter((t) => t.id !== id));
+      deleteTaskFromFirestore(id);
+      broadcastLiveEvent({ type: 'task_deleted', taskId: id });
+      fetch('/api/tasks/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: id }),
+      }).catch((err) => console.warn('Sync delete task error:', err));
       showToast('Đã xóa công việc khỏi danh sách!');
     }
   };
@@ -619,20 +634,19 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
       ? Math.max(task.progress || 30, 20)
       : 0;
 
+    const updatedTask: Task = {
+      ...task,
+      status: newStatus,
+      progress: newProgress,
+      completedAt: isCompleted ? task.completedAt || new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
     setTasks(
-      tasks.map((t) => {
-        if (t.id === task.id) {
-          return {
-            ...t,
-            status: newStatus,
-            progress: newProgress,
-            completedAt: isCompleted ? t.completedAt || new Date().toISOString() : undefined,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return t;
-      })
+      tasks.map((t) => (t.id === task.id ? updatedTask : t))
     );
+    saveTaskToFirestore(updatedTask);
+    broadcastLiveEvent({ type: 'task_saved', task: updatedTask });
 
     const statusLabel =
       newStatus === 'completed'
@@ -689,21 +703,20 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     const finalStatus = isComp ? 'completed' : quickStatus;
     const finalProgress = isComp ? 100 : quickProgress;
 
+    const updatedTask: Task = {
+      ...progressModalTask,
+      status: finalStatus,
+      progress: finalProgress,
+      resultNote: quickResultNote.trim(),
+      completedAt: isComp ? progressModalTask.completedAt || new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
     setTasks(
-      tasks.map((t) => {
-        if (t.id === progressModalTask.id) {
-          return {
-            ...t,
-            status: finalStatus,
-            progress: finalProgress,
-            resultNote: quickResultNote.trim(),
-            completedAt: isComp ? t.completedAt || new Date().toISOString() : undefined,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return t;
-      })
+      tasks.map((t) => (t.id === progressModalTask.id ? updatedTask : t))
     );
+    saveTaskToFirestore(updatedTask);
+    broadcastLiveEvent({ type: 'task_saved', task: updatedTask });
 
     const emp = getEmployee(progressModalTask.employeeId);
     showToast('Đã cập nhật tiến độ & kết quả công việc!');

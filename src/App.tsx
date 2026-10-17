@@ -54,7 +54,30 @@ import {
   fetchAllMealsFromFirestore,
   subscribeToSystemRealtime,
   saveSystemConfigToFirestore,
+  subscribeToTasksRealtime,
+  saveTaskToFirestore,
+  deleteTaskFromFirestore,
+  saveAllTasksToFirestore,
+  fetchAllTasksFromFirestore,
 } from './utils/firebase';
+
+function mergeTasksByTimestamp(existing: Task[], incoming: Task[]): Task[] {
+  const map = new Map<string, Task>();
+  existing.forEach((t) => map.set(t.id, t));
+  incoming.forEach((inc) => {
+    const cur = map.get(inc.id);
+    if (!cur) {
+      map.set(inc.id, inc);
+    } else {
+      const curTime = cur.updatedAt ? new Date(cur.updatedAt).getTime() : 0;
+      const incTime = inc.updatedAt ? new Date(inc.updatedAt).getTime() : 0;
+      if (incTime >= curTime) {
+        map.set(inc.id, inc);
+      }
+    }
+  });
+  return Array.from(map.values());
+}
 
 export default function App() {
   // Load persistent state from localStorage with migration to remove Lê Đăng Đoàn & update Welstory / HR Group
@@ -261,6 +284,7 @@ export default function App() {
   const lastServerVersionRef = useRef<number>(0);
   const tasksRef = useRef<Task[]>(tasks);
   tasksRef.current = tasks;
+  const isFirestoreTasksIncomingRef = useRef<boolean>(false);
 
   // Sync state from cloud & real-time SSE live events across all devices
   useEffect(() => {
@@ -276,6 +300,17 @@ export default function App() {
           return merged;
         });
         showNotification('Firebase: Đã đồng bộ dữ liệu thời gian thực!', 'info');
+      }
+    });
+
+    const unsubscribeFirestoreTasks = subscribeToTasksRealtime((firestoreTasks) => {
+      if (!isMounted || !firestoreTasks) return;
+      if (firestoreTasks.length > 0) {
+        isFirestoreTasksIncomingRef.current = true;
+        setTasks(firestoreTasks);
+        showNotification('Firebase: Đã đồng bộ nhiệm vụ thời gian thực!', 'info');
+      } else if (tasksRef.current && tasksRef.current.length > 0) {
+        saveAllTasksToFirestore(tasksRef.current);
       }
     });
 
@@ -299,12 +334,7 @@ export default function App() {
         setNotifications(sysConfig.notifications);
       }
       if (sysConfig.tasks && Array.isArray(sysConfig.tasks) && sysConfig.tasks.length > 0) {
-        setTasks((prev) => {
-          const map = new Map<string, Task>();
-          prev.forEach((t) => map.set(t.id, t));
-          sysConfig.tasks!.forEach((t) => map.set(t.id, t));
-          return Array.from(map.values());
-        });
+        setTasks((prev) => mergeTasksByTimestamp(prev, sysConfig.tasks!));
       }
     });
 
@@ -323,13 +353,17 @@ export default function App() {
         showNotification(`Thông báo mới: ${event.notification.title}`, 'info');
       } else if (event.type === 'NOTIFICATIONS_SYNC' && event.notifications) {
         setNotifications(event.notifications);
-      } else if (event.type === 'tasks_update' && Array.isArray(event.tasks)) {
+      } else if (event.type === 'task_saved' && event.task) {
         setTasks((prev) => {
           const map = new Map<string, Task>();
           prev.forEach((t) => map.set(t.id, t));
-          event.tasks.forEach((t: Task) => map.set(t.id, t));
+          map.set(event.task.id, event.task);
           return Array.from(map.values());
         });
+      } else if (event.type === 'task_deleted' && event.taskId) {
+        setTasks((prev) => prev.filter((t) => t.id !== event.taskId));
+      } else if (event.type === 'tasks_update' && Array.isArray(event.tasks)) {
+        setTasks((prev) => mergeTasksByTimestamp(prev, event.tasks));
       } else if (event.type === 'MEAL_SAVE' && event.allRecords) {
         setMealData((prev) => {
           const next = {
@@ -411,12 +445,7 @@ export default function App() {
         setNotifications(cloud.notifications);
       }
       if (cloud.tasks && Array.isArray(cloud.tasks) && cloud.tasks.length > 0) {
-        setTasks((prev) => {
-          const map = new Map<string, Task>();
-          prev.forEach((t) => map.set(t.id, t));
-          cloud.tasks!.forEach((t) => map.set(t.id, t));
-          return Array.from(map.values());
-        });
+        setTasks((prev) => mergeTasksByTimestamp(prev, cloud.tasks!));
       }
     });
 
@@ -450,13 +479,7 @@ export default function App() {
             setPasswordRequests(data.passwordRequests);
           }
           if (data.tasks && Array.isArray(data.tasks) && data.tasks.length > 0) {
-            const serverTasks = data.tasks;
-            setTasks((prev) => {
-              const map = new Map<string, Task>();
-              prev.forEach((t) => map.set(t.id, t));
-              serverTasks.forEach((t) => map.set(t.id, t));
-              return Array.from(map.values());
-            });
+            setTasks((prev) => mergeTasksByTimestamp(prev, data.tasks!));
           }
         }
       } catch (err) {
@@ -471,12 +494,7 @@ export default function App() {
     fetchTasksFromServer().then((srvTasks) => {
       if (!isMounted || !srvTasks || !Array.isArray(srvTasks)) return;
       if (srvTasks.length > 0) {
-        setTasks((prev) => {
-          const map = new Map<string, Task>();
-          prev.forEach((t) => map.set(t.id, t));
-          srvTasks.forEach((t) => map.set(t.id, t));
-          return Array.from(map.values());
-        });
+        setTasks((prev) => mergeTasksByTimestamp(prev, srvTasks));
       }
     });
 
@@ -487,12 +505,7 @@ export default function App() {
       fetchTasksFromServer().then((srvTasks) => {
         if (!isMounted || !srvTasks || !Array.isArray(srvTasks)) return;
         if (srvTasks.length > 0) {
-          setTasks((prev) => {
-            const map = new Map<string, Task>();
-            prev.forEach((t) => map.set(t.id, t));
-            srvTasks.forEach((t) => map.set(t.id, t));
-            return Array.from(map.values());
-          });
+          setTasks((prev) => mergeTasksByTimestamp(prev, srvTasks));
         }
       });
       fetchMasterCloudData().then((cloud) => {
@@ -521,6 +534,7 @@ export default function App() {
     return () => {
       isMounted = false;
       unsubscribeFirestoreMeals();
+      unsubscribeFirestoreTasks();
       unsubscribeFirestoreSystem();
       unsubscribeLive();
       clearInterval(interval);
@@ -584,15 +598,26 @@ export default function App() {
       return;
     }
 
+    // If update arrived from Firestore realtime listener, do not re-emit to prevent loops
+    if (isFirestoreTasksIncomingRef.current) {
+      isFirestoreTasksIncomingRef.current = false;
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks, replace: true }),
+      }).catch(() => {});
+      return;
+    }
+
     // 1. Central Server Sync
     fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tasks }),
+      body: JSON.stringify({ tasks, replace: true }),
     }).catch((err) => console.warn('Sync tasks to server error:', err));
 
     // 2. Realtime Firestore Sync
-    saveSystemConfigToFirestore({ tasks }).catch((err) =>
+    saveAllTasksToFirestore(tasks).catch((err) =>
       console.warn('Sync tasks to firestore error:', err)
     );
 
@@ -875,6 +900,8 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
     setTasks((prev) => prev.map((t) => (t.id === task.id ? updatedTask : t)));
+    saveTaskToFirestore(updatedTask);
+    broadcastLiveEvent({ type: 'task_saved', task: updatedTask });
 
     // Real-time dispatch notification
     handleDispatchNotification({
@@ -1454,6 +1481,8 @@ export default function App() {
                 updatedAt: new Date().toISOString(),
               };
               setTasks((prev) => [newTask, ...prev]);
+              saveTaskToFirestore(newTask);
+              broadcastLiveEvent({ type: 'task_saved', task: newTask });
               // Also notify
               const targetEmp = employees.find((e) => e.id === assignedTarget);
               handleDispatchNotification({
